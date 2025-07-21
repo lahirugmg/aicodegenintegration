@@ -2,50 +2,35 @@ import ballerina/http;
 
 service /contacts on new http:Listener(8080) {
     
-    resource function post transform(xml xmlPayload) returns ContactOutput[]|error {
+    resource function post .() returns xml|error {
         
-        // Convert XML to JSON
-        json jsonData = xmlPayload.toJson();
+        // Fetch contacts data from external API
+        json contactsResponse = check externalApiClient->get("/mocks/5a4878c5-b727-4d26-ad25-df5f485f324c/contacts");
         
-        // Convert JSON to structured record
-        ContactsJson contactsData = check jsonData.cloneWithType();
+        // Convert JSON to Contact array
+        Contact[] contacts = check contactsResponse.cloneWithType();
         
-        // Handle both single contact and array of contacts
-        ContactJsonInput[] contactArray = [];
-        if contactsData.Contact is ContactJsonInput[] {
-            ContactJsonInput[] contacts = <ContactJsonInput[]>contactsData.Contact;
-            contactArray = contacts;
-        } else {
-            ContactJsonInput singleContact = <ContactJsonInput>contactsData.Contact;
-            contactArray = [singleContact];
+        // Build XML string
+        string xmlString = "<Contacts>";
+        
+        foreach Contact contact in contacts {
+            xmlString = xmlString + "<Contact>";
+            xmlString = xmlString + "<FirstName>" + contact.FirstName + "</FirstName>";
+            xmlString = xmlString + "<LastName>" + contact.LastName + "</LastName>";
+            xmlString = xmlString + "<Email>" + contact.Email + "</Email>";
+            xmlString = xmlString + "<Phone>" + contact.Phone + "</Phone>";
+            xmlString = xmlString + "<Department>" + contact.Department + "</Department>";
+            xmlString = xmlString + "<Title>" + contact.Title + "</Title>";
+            xmlString = xmlString + "<MailingCity>" + contact.MailingCity + "</MailingCity>";
+            xmlString = xmlString + "<MailingCountry>" + contact.MailingCountry + "</MailingCountry>";
+            xmlString = xmlString + "</Contact>";
         }
         
-        // Transform to output format
-        ContactOutput[] outputContacts = [];
+        xmlString = xmlString + "</Contacts>";
         
-        foreach ContactJsonInput contact in contactArray {
-            string phoneValue = "";
-            if contact.Phone is PhoneJson {
-                PhoneJson phoneObj = <PhoneJson>contact.Phone;
-                phoneValue = phoneObj.\#content;
-            } else {
-                phoneValue = <string>contact.Phone;
-            }
-            
-            ContactOutput outputContact = {
-                FirstName: contact.FirstName,
-                LastName: contact.LastName,
-                Email: contact.Email,
-                Phone: phoneValue,
-                Department: contact.Department,
-                Title: contact.Title,
-                MailingCity: contact.Address.City,
-                MailingCountry: contact.Address.Country
-            };
-            
-            outputContacts.push(outputContact);
-        }
+        // Convert string to XML
+        xml contactsXml = check xml:fromString(xmlString);
         
-        return outputContacts;
+        return contactsXml;
     }
 }
