@@ -1,5 +1,25 @@
 import ballerina/http;
 
+service /quote on new http:Listener(8080) {
+    
+    resource function get quote() returns QuoteOutput|error {
+        
+        // Fetch random quote from quotable.io API
+        json quoteResponse = check quotableApiClient->get("/random");
+        
+        // Convert JSON to QuoteResponse record
+        QuoteResponse quoteData = check quoteResponse.cloneWithType();
+        
+        // Transform to required output format
+        QuoteOutput result = {
+            author: quoteData.author,
+            quote: quoteData.content
+        };
+        
+        return result;
+    }
+}
+
 service /contacts on new http:Listener(8080) {
     
     resource function post .() returns xml|error {
