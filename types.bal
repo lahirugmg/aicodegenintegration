@@ -26,3 +26,28 @@ public type QuoteOutput record {
     string author;
     string quote;
 };
+
+// RSS feed structure after XML to JSON conversion
+public type RssFeed record {
+    RssChannel rss;
+};
+
+public type RssChannel record {
+    ChannelData channel;
+};
+
+public type ChannelData record {
+    string title?;
+    string description?;
+    string link?;
+    RssItem|RssItem[] item?;
+};
+
+public type RssItem record {
+    string title?;
+    string description?;
+    string link?;
+    string pubDate?;
+    string guid?;
+    string category?;
+};

@@ -1,4 +1,21 @@
 import ballerina/http;
+import ballerina/lang.runtime as runtime;
+import ballerina/log;
+
+public function main() {
+    log:printInfo("Starting RSS to Kafka integration scheduler");
+    
+    // Start the scheduler in a separate worker
+    worker RssScheduler {
+        while true {
+            processRssFeed();
+            // Sleep for 10 minutes (600 seconds)
+            runtime:sleep(600);
+        }
+    }
+    
+    log:printInfo("RSS scheduler started, will run every 10 minutes");
+}
 
 service /quote on new http:Listener(8080) {
     
