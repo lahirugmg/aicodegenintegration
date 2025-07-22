@@ -27,27 +27,17 @@ public type QuoteOutput record {
     string quote;
 };
 
-// RSS feed structure after XML to JSON conversion
-public type RssFeed record {
-    RssChannel rss;
+// Raw order structure from raw-orders topic
+public type RawOrder record {
+    string orderId;
+    decimal totalAmount;
+    string customerId?;
+    string orderDate?;
+    string status?;
 };
 
-public type RssChannel record {
-    ChannelData channel;
-};
-
-public type ChannelData record {
-    string title?;
-    string description?;
-    string link?;
-    RssItem|RssItem[] item?;
-};
-
-public type RssItem record {
-    string title?;
-    string description?;
-    string link?;
-    string pubDate?;
-    string guid?;
-    string category?;
+// Processed order structure for processed-orders topic
+public type ProcessedOrder record {
+    string orderId;
+    decimal totalAmount;
 };

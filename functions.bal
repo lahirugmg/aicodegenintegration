@@ -1,66 +1,50 @@
 import ballerina/log;
 import ballerinax/kafka;
 
-// Function to fetch RSS feed with retry logic
-function fetchRssFeedWithRetry() returns xml|error {
-    xml|error result = rssClient->get("/feed/subscribe/en/news/all/rss.xml");
-
-    if result is error {
-        log:printInfo("First attempt failed, retrying RSS feed fetch");
-        // Retry once
-        result = rssClient->get("/feed/subscribe/en/news/all/rss.xml");
-
-        if result is error {
-            log:printError("Failed to fetch RSS feed after retry", result);
-            return result;
+// Function to process raw orders and publish processed orders
+function processOrderBatch(kafka:AnydataConsumerRecord[] records, kafka:Caller caller) returns error? {
+    int batchSize = records.length();
+    log:printInfo(string `Processing batch of ${batchSize} orders`);
+    
+    foreach kafka:AnydataConsumerRecord consumerRecord in records {
+        // Extract order data from record value
+        anydata recordValue = consumerRecord.value;
+        
+        // Convert byte array to string
+        byte[] orderBytes = check recordValue.ensureType();
+        string orderString = check string:fromBytes(orderBytes);
+        
+        // Parse string as JSON
+        json orderJson = check orderString.fromJsonString();
+        
+        // Convert to RawOrder record
+        RawOrder rawOrder = check orderJson.cloneWithType();
+        
+        // Create processed order with only orderId and totalAmount
+        ProcessedOrder processedOrder = {
+            orderId: rawOrder.orderId,
+            totalAmount: rawOrder.totalAmount
+        };
+        
+        // Publish processed order to processed-orders topic
+        kafka:AnydataProducerRecord producerRecord = {
+            topic: "processed-orders",
+            value: processedOrder
+        };
+        
+        kafka:Error? publishResult = processedOrdersProducer->send(producerRecord);
+        if publishResult is kafka:Error {
+            log:printError("Failed to publish processed order", publishResult);
+            return publishResult;
         }
     }
-
-    return result;
-}
-
-// Function to process RSS feed and publish to Kafka
-function processRssFeed() {
-    do {
-        // Fetch RSS feed with retry
-        xml rssXml = check fetchRssFeedWithRetry();
-
-        // Convert XML to JSON
-        json rssJson = rssXml.toJson();
-
-        // Convert to structured record
-        RssFeed rssFeed = check rssJson.cloneWithType();
-
-        // Extract items
-        RssItem[] items = [];
-        if rssFeed.rss.channel.item is RssItem[] {
-            RssItem[] itemArray = <RssItem[]>rssFeed.rss.channel.item;
-            items = itemArray;
-        } else if rssFeed.rss.channel.item is RssItem {
-            RssItem singleItem = <RssItem>rssFeed.rss.channel.item;
-            items = [singleItem];
-        }
-
-        // Publish each item to Kafka
-        int publishedCount = 0;
-        foreach RssItem item in items {
-            json itemJson = item.toJson();
-            kafka:AnydataProducerRecord producerRecord = {
-                topic: "news-updates",
-                value: itemJson
-            };
-
-            kafka:Error? result = newsProducer->send(producerRecord);
-            if result is kafka:Error {
-                log:printError("Failed to publish item to Kafka", result);
-            } else {
-                publishedCount = publishedCount + 1;
-            }
-        }
-
-        log:printInfo(string `Successfully published ${publishedCount} news items to Kafka topic 'news-updates'`);
-
-    } on fail error e {
-        log:printError("Error processing RSS feed", e);
+    
+    // Commit offsets only after successful publish of all records
+    kafka:Error? commitResult = caller->commit();
+    if commitResult is kafka:Error {
+        log:printError("Failed to commit offsets", commitResult);
+        return commitResult;
     }
+    
+    log:printInfo(string `Successfully processed and published batch of ${batchSize} orders`);
 }
